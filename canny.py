@@ -194,6 +194,8 @@ def bf_match(img1, img2, kp1, des1, kp2, des2, drawToImage = False):
   if drawToImage:
     outImg = np.zeros((1, 1, 3), dtype=np.uint8)
     out = cv2.drawMatches(img1,kp1,img2,kp2, good, outImg, flags=2)
+    cv2.putText(img=out, text=str(len(good)), org=(width * 2 - 100, 50), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=2,
+                color=(0, 0, 255), thickness=2)
     cv2.imshow('out', out)
   return True, out, movement_y_avg, kp2, des2
 
@@ -221,6 +223,8 @@ def sift_knn_match(img1, img2, kp1, des1, kp2, des2, drawToImage = False):
   if drawToImage:
     outImg = np.zeros((1, 1, 3), dtype=np.uint8)
     out = cv2.drawMatches(img1,kp1,img2,kp2, good, outImg, flags=2)
+    cv2.putText(img=out, text=str(len(good)), org=(width * 2 - 100, 50), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=2,
+                color=(0, 0, 255), thickness=2)
     cv2.imshow('out', out)
   return True, out, movement_y_avg, kp2, des2
 
@@ -270,18 +274,21 @@ def main():
     else:
       print 'Invalid feature detect algorithm'
       return
-    match_imgs = []
+    match_results = []
     kps2 = []
     for i, img in enumerate(imgs[:-1]):
       kp1, des1 = feature_detector.detectAndCompute(img, None)
       kp2, des2 = feature_detector.detectAndCompute(imgs[i + 1], None)
-      match_imgs.append(feature_matcher(img, imgs[i + 1], kp1, des1, kp2, des2, True))
+      mr = feature_matcher(img, imgs[i + 1], kp1, des1, kp2, des2, True)
+      if mr[0]:
+        cv2.putText(img=mr[1], text=str(i + 1), org=(30, 50), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=2, color=(255, 0, 0), thickness=2)
+      match_results.append(mr)
       kps2.append((kp2, des2))
-    imgs = np.concatenate([img for Succeeded, img, movement_y, kp2, des2 in match_imgs if Succeeded], axis=0)
+    imgs = np.concatenate([img for Succeeded, img, movement_y, kp2, des2 in match_results if Succeeded], axis=0)
     # cv2.imshow('acc_edged', img)
     cv2.imwrite("tmp/" + os.path.basename(args.input_video_path) + '.' + args.feature_algorithm + ".png", imgs)
 
-    movement_ys = [movement_y for Succeeded, _, movement_y, kp2, des2 in match_imgs if Succeeded]
+    movement_ys = [movement_y for Succeeded, _, movement_y, kp2, des2 in match_results if Succeeded]
     prev_img = imgs[-1]
     prev_kp2 = kps2[-1][0]
     prev_des2 = kps2[-1][1]
