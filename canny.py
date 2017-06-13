@@ -2,6 +2,8 @@ import argparse
 import numpy as np
 import cv2
 from collections import namedtuple
+import os
+import datetime as dt
 
 def merge(img1, img2):
   rows,cols,channels = img2.shape
@@ -23,7 +25,6 @@ def merge(img1, img2):
 def auto_canny(image, sigma=0.33):
   # compute the median of the single channel pixel intensities
   v = np.median(image)
-
   # apply automatic Canny edge detection using the computed median
   lower = int(max(0, (1.0 - sigma) * v))
   upper = int(min(255, (1.0 + sigma) * v))
@@ -78,10 +79,11 @@ def find_blobs(frame):
                                         cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
 
 def draw_sift(frame):
-  gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+  if (len(frame.shape) > 2):
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
   sift = cv2.xfeatures2d.SIFT_create()
-  kp = sift.detect(gray, None)
-  return cv2.drawKeypoints(gray, kp, frame)
+  kp = sift.detect(frame, None)
+  return cv2.drawKeypoints(frame, kp, frame)
 
 
 def region_of_interest(img, vertices):
@@ -129,7 +131,8 @@ def mask_roi(frame, bottom_left_corner, bottom_right_corner, top_left, top_right
 
 
 def find_roi(frame, bottom_left_corner, bottom_right_corner, top_left, top_right):
-  frame = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
+  if (len(frame.shape) > 2):
+    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
   # Choose a Region Of Interest
   return mask_roi(frame, bottom_left_corner, bottom_right_corner, top_left, top_right)
 
@@ -169,55 +172,64 @@ def verify_keypint_move_direction(width, pt1, pt2):
   else:
     return x2 > x1
 
-def orb_match(img1, img2, kp1, des1, kp2, des2, drawToImage = False):
+def bf_match(img1, img2, kp1, des1, kp2, des2, drawToImage = False):
   if des1 is None:
     print("des1 is None")
     cv2.imwrite("tmp/des1.png", img1)
-    return False, None, 0
+    return False, None, 0, None, None
   if des2 is None:
     print("des2 is None")
     cv2.imwrite("tmp/des2.png", img1)
-    return False, None, 0
-  # BFMatcher with default params
+    return False, None, 0, None, None
   bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
   # Match descriptors.
-  matches = bf.match(des1,des2)
+  matches = bf.match(des1, des2)
   # Sort them in the order of their distance.
   #matches = sorted(matches, key = lambda x:x.distance)
   height, width = img1.shape
   good = [match for match in matches if verify_keypint_move_direction(width, kp1[match.queryIdx].pt, kp2[match.trainIdx].pt)]
-  movement_y_avg = sum([(kp2[match.trainIdx].pt[1] - kp1[match.queryIdx].pt[1]) for match in matches]) / len(matches)
-  #print(movement_y_avg)
+  movement_y_avg = sum([(kp2[match.trainIdx].pt[1] - kp1[match.queryIdx].pt[1]) for match in good]) / len(good)
+  #print(movement_y)
   out = None
   if drawToImage:
     outImg = np.zeros((1, 1, 3), dtype=np.uint8)
     out = cv2.drawMatches(img1,kp1,img2,kp2, good, outImg, flags=2)
+    cv2.imshow('out', out)
   return True, out, movement_y_avg, kp2, des2
 
-
-def draw_sift_match(img1, img2):
-  sift = cv2.xfeatures2d.SIFT_create()
-  kp1, des1 = sift.detectAndCompute(img1, None)
-  kp2, des2 = sift.detectAndCompute(img2, None)
-  # BFMatcher with default params
+def sift_knn_match(img1, img2, kp1, des1, kp2, des2, drawToImage = False):
+  if des1 is None:
+    print("des1 is None")
+    cv2.imwrite("tmp/des1.png", img1)
+    return False, None, 0, None, None
+  if des2 is None:
+    print("des2 is None")
+    cv2.imwrite("tmp/des2.png", img1)
+    return False, None, 0, None, None
   bf = cv2.BFMatcher()
   matches = bf.knnMatch(des1, des2, k=2)
   # Apply ratio test
   good = []
   for m, n in matches:
     if m.distance < 0.75 * n.distance:
-      good.append([m])
-
-  # cv2.drawMatchesKnn expects list of lists as matches.
-  outImg = np.zeros((1, 1, 3), dtype=np.uint8)
-  return cv2.drawMatchesKnn(img1, kp1, img2, kp2, good, outImg, flags=2)
-
+      good.append(m)
+  height, width = img1.shape
+  good = [match for match in good if verify_keypint_move_direction(width, kp1[match.queryIdx].pt, kp2[match.trainIdx].pt)]
+  movement_y_avg = sum([(kp2[match.trainIdx].pt[1] - kp1[match.queryIdx].pt[1]) for match in good]) / len(matches)
+  #print(movement_y)
+  out = None
+  if drawToImage:
+    outImg = np.zeros((1, 1, 3), dtype=np.uint8)
+    out = cv2.drawMatches(img1,kp1,img2,kp2, good, outImg, flags=2)
+    cv2.imshow('out', out)
+  return True, out, movement_y_avg, kp2, des2
 
 def main():
   parser = argparse.ArgumentParser(description='Process some integers.')
   parser.add_argument("-i", "--input_video_path", dest = 'input_video_path', required = True)
   parser.add_argument("-t", "--input_txt_path", dest = 'input_txt_path', required = False)
   parser.add_argument("-b", "--batch_read", dest = 'batch_read', required = False)
+  parser.add_argument("-f", "--feature_algorithm", dest = 'feature_algorithm', default='orb', required = False)
   args = parser.parse_args()
 
   mphs = []
@@ -247,62 +259,95 @@ def main():
     imgs = [find_roi(frame, bottom_left_corner, bottom_right_corner, top_left, top_right) for frame in initial_frames]
     # Crop to roi
     imgs = [img[y1:y2, x1:x2] for img in imgs]
-    #img = np.concatenate(imgs, axis=1)
-    # cv2.imshow('acc_edged', img)
-    # cv2.imwrite("tmp/acc.png", img)
-    orb = cv2.ORB_create()
+    if args.feature_algorithm == 'orb':
+      print 'Use ORB'
+      feature_detector = cv2.ORB_create()
+      feature_matcher = bf_match
+    elif args.feature_algorithm == 'sift':
+      print 'Use SIFT'
+      feature_detector = cv2.xfeatures2d.SIFT_create()
+      feature_matcher = sift_knn_match
+    else:
+      print 'Invalid feature detect algorithm'
+      return
     match_imgs = []
     kps2 = []
     for i, img in enumerate(imgs[:-1]):
-      kp1, des1 = orb.detectAndCompute(img, None)
-      kp2, des2 = orb.detectAndCompute(imgs[i + 1], None)
-      match_imgs.append(orb_match(img, imgs[i + 1], kp1, des1, kp2, des2))
+      kp1, des1 = feature_detector.detectAndCompute(img, None)
+      kp2, des2 = feature_detector.detectAndCompute(imgs[i + 1], None)
+      match_imgs.append(feature_matcher(img, imgs[i + 1], kp1, des1, kp2, des2, True))
       kps2.append((kp2, des2))
-    movement_y_avgs = [movement_y_avg for Succeeded, _, movement_y_avg, kp2, des2 in match_imgs if Succeeded]
+    imgs = np.concatenate([img for Succeeded, img, movement_y, kp2, des2 in match_imgs if Succeeded], axis=0)
+    # cv2.imshow('acc_edged', img)
+    cv2.imwrite("tmp/" + os.path.basename(args.input_video_path) + '.' + args.feature_algorithm + ".png", imgs)
+
+    movement_ys = [movement_y for Succeeded, _, movement_y, kp2, des2 in match_imgs if Succeeded]
     prev_img = imgs[-1]
     prev_kp2 = kps2[-1][0]
     prev_des2 = kps2[-1][1]
     c += len(initial_frames)
+    min_ratio = 100.0
+    max_ratio = 0.0
+    avg_ratio = 0.0
     while (cap.isOpened()):
       Succeeded, frame = cap.read()
       if not Succeeded:
         break
       #edged_frames = [make_edges(frame) for i, frame in enumerate(frames)]
       #img = sum(edged_frames)
+      #n1 = dt.datetime.now()
       img = find_roi(frame, bottom_left_corner, bottom_right_corner, top_left, top_right)
       # Crop to roi
       img = img[y1:y2, x1:x2]
-      kp1, des1 = orb.detectAndCompute(img, None)
-      Succeeded, _, movement_y_avg, kp2, des2 = orb_match(prev_img, img, prev_kp2, prev_des2, kp1, des1)
-      movement_y_avgs = movement_y_avgs[1:]
-      movement_y_avgs.append(movement_y_avg)
-      movement_y_avg = sum(movement_y_avgs) / len(movement_y_avgs)
+      kp1, des1 = feature_detector.detectAndCompute(img, None)
+      Succeeded, _, movement_y, kp2, des2 = feature_matcher(prev_img, img, prev_kp2, prev_des2, kp1, des1, True)
+      #n2 = dt.datetime.now()
+      #print((n2.microsecond-n1.microsecond)/1e6, 'secs')
+      movement_ys = movement_ys[1:]
+      movement_ys.append(movement_y)
+      movement_y = sum(movement_ys) / len(movement_ys)
       prev_img = img
       prev_kp2 = kp2
       prev_des2 = des2
       text_output = np.zeros((480, 640, 3), dtype=np.uint8)
-      cv2.putText(img=text_output, text=mphs[c], org=(0, 50), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=2, color=(255, 0, 0), thickness=2)
-      cv2.putText(img=text_output, text=str(movement_y_avg), org=(0, 150), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=2, color=(255, 0, 0), thickness=2)
-      cv2.putText(img=text_output, text=str(float(mphs[c]) / movement_y_avg), org=(0, 250), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=2, color=(255, 0, 0), thickness=2)
+      cv2.putText(img=text_output, text=mphs[c], org=(0, 50), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1, color=(255, 0, 0), thickness=2)
+      cv2.putText(img=text_output, text=str(movement_y), org=(0, 100), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1, color=(255, 0, 0), thickness=2)
+      ratio = float(mphs[c]) / movement_y
+      if min_ratio > ratio:
+        min_ratio = ratio
+      if max_ratio < ratio:
+        max_ratio = ratio
+      if avg_ratio == 0.0:
+        avg_ratio = ratio
+      else:
+        avg_ratio = (ratio + avg_ratio) / 2
+      cv2.putText(img=text_output, text=str(ratio), org=(0, 150), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1, color=(255, 0, 0), thickness=2)
+      cv2.putText(img=text_output, text=('min:' + str(min_ratio)), org=(0, 200), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1, color=(255, 0, 0), thickness=2)
+      cv2.putText(img=text_output, text=('max:' + str(max_ratio)), org=(0, 250), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1, color=(255, 0, 0), thickness=2)
+      cv2.putText(img=text_output, text=('avg:' + str(avg_ratio)), org=(0, 300), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1, color=(255, 0, 0), thickness=2)
       #cv2.imshow('match_result', match_result)
       #cv2.imwrite("tmp/matches.png", img)
       cv2.imshow('text_output', text_output)
+      cv2.imshow('frame', frame)
       c += 1
-      if cv2.waitKey(1000) & 0xFF == ord('q'):
+      if cv2.waitKey(1) & 0xFF == ord('q'):
         break
   else:
     while (cap.isOpened()):
       _, frame = cap.read()
       #img = make_edges(frame)
-      #img = draw_sift(frame)
+      img = find_roi(frame, bottom_left_corner, bottom_right_corner, top_left, top_right)
+      img = img[y1:y2, x1:x2]
+      img = draw_sift(img)
       #img = find_blobs(frame)
       #img = make_warp(frame)
-      img = find_lane(frame, bottom_left_corner, bottom_right_corner, top_left, top_right)
+      #img = find_lane(frame, bottom_left_corner, bottom_right_corner, top_left, top_right)
+      cv2.putText(img=img, text=mphs[c], org=(0, 50), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1, color=(255, 0, 0), thickness=2)
       c += 1
       cv2.imshow('edged', img)
       cv2.imshow('orginal', frame)
       #cv2.setMouseCallback("orginal", on_mouse, param=())
-      if cv2.waitKey(1000) & 0xFF == ord('q'):
+      if cv2.waitKey(1) & 0xFF == ord('q'):
           break
   cap.release()
   cv2.destroyAllWindows()
