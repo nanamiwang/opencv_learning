@@ -125,16 +125,13 @@ def hough_lines(img, rho, theta, threshold, min_line_len, max_line_gap):
     Line = namedtuple("Line", "x1 y1 x2 y2")
     return [Line(*line[0]) for line in lines]
 
-def mask_roi(frame, bottom_left_corner, bottom_right_corner, top_left, top_right):
-  region = [np.array([bottom_left_corner,top_left, top_right, bottom_right_corner])]
-  return region_of_interest(frame, region)
-
 
 def find_roi(frame, bottom_left_corner, bottom_right_corner, top_left, top_right):
   if (len(frame.shape) > 2):
     frame = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
   # Choose a Region Of Interest
-  return mask_roi(frame, bottom_left_corner, bottom_right_corner, top_left, top_right)
+  region = [np.array([bottom_left_corner,top_left, top_right, bottom_right_corner])]
+  return region_of_interest(frame, region)
 
 def find_lane(frame, bottom_left_corner, bottom_right_corner, top_left, top_right):
   region_selected_image = find_roi(frame, bottom_left_corner, bottom_right_corner, top_left, top_right)
@@ -188,6 +185,9 @@ def bf_match(img1, img2, kp1, des1, kp2, des2, drawToImage = False):
   #matches = sorted(matches, key = lambda x:x.distance)
   height, width = img1.shape
   good = [match for match in matches if verify_keypint_move_direction(width, kp1[match.queryIdx].pt, kp2[match.trainIdx].pt)]
+  if len(good) is 0:
+    print("good is None")
+    return False, None, 0, None, None
   movement_y_avg = sum([(kp2[match.trainIdx].pt[1] - kp1[match.queryIdx].pt[1]) for match in good]) / len(good)
   #print(movement_y)
   out = None
@@ -217,6 +217,9 @@ def sift_knn_match(img1, img2, kp1, des1, kp2, des2, drawToImage = False):
       good.append(m)
   height, width = img1.shape
   good = [match for match in good if verify_keypint_move_direction(width, kp1[match.queryIdx].pt, kp2[match.trainIdx].pt)]
+  if len(good) is 0:
+    print("good is None")
+    return False, None, 0, None, None
   movement_y_avg = sum([(kp2[match.trainIdx].pt[1] - kp1[match.queryIdx].pt[1]) for match in good]) / len(matches)
   #print(movement_y)
   out = None
@@ -263,6 +266,10 @@ def main():
     imgs = [find_roi(frame, bottom_left_corner, bottom_right_corner, top_left, top_right) for frame in initial_frames]
     # Crop to roi
     imgs = [img[y1:y2, x1:x2] for img in imgs]
+    crop_height = y2 - y1
+    crop_width = x2 - x1
+    sub_imgs = np.concatenate([img[(crop_height - 50):(crop_height - 1), 0:(crop_width - 1)] for img in imgs], axis=0)
+    cv2.imwrite("tmp/" + os.path.basename(args.input_video_path) + '.subs.png', sub_imgs)
     if args.feature_algorithm == 'orb':
       print 'Use ORB'
       feature_detector = cv2.ORB_create()
