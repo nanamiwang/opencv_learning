@@ -187,6 +187,10 @@ def bf_match(img1, img2, kp1, des1, kp2, des2, drawToImage = False):
   good = [match for match in matches if verify_keypint_move_direction(width, kp1[match.queryIdx].pt, kp2[match.trainIdx].pt)]
   if len(good) is 0:
     print("good is None")
+    img1 = cv2.drawKeypoints(img1, kp1, 0, color=(0, 255, 0), flags=0)
+    cv2.imwrite("tmp/good_none1.png", img1)
+    img2 = cv2.drawKeypoints(img2, kp2, 0, color=(0, 255, 0), flags=0)
+    cv2.imwrite("tmp/good_none2.png", img2)
     return False, None, 0, None, None
   movement_y_avg = sum([(kp2[match.trainIdx].pt[1] - kp1[match.queryIdx].pt[1]) for match in good]) / len(good)
   #print(movement_y)
@@ -212,13 +216,17 @@ def sift_knn_match(img1, img2, kp1, des1, kp2, des2, drawToImage = False):
   matches = bf.knnMatch(des1, des2, k=2)
   # Apply ratio test
   good = []
-  for m, n in matches:
-    if m.distance < 0.75 * n.distance:
-      good.append(m)
+  for m in matches:
+    if len(m) == 2 and m[0].distance < 0.75 * m[1].distance:
+      good.append(m[0])
   height, width = img1.shape
   good = [match for match in good if verify_keypint_move_direction(width, kp1[match.queryIdx].pt, kp2[match.trainIdx].pt)]
   if len(good) is 0:
     print("good is None")
+    img1 = cv2.drawKeypoints(img1, kp1, 0, color=(0, 255, 0), flags=0)
+    cv2.imwrite("tmp/good_none1.png", img1)
+    img2 = cv2.drawKeypoints(img2, kp2, 0, color=(0, 255, 0), flags=0)
+    cv2.imwrite("tmp/good_none2.png", img2)
     return False, None, 0, None, None
   movement_y_avg = sum([(kp2[match.trainIdx].pt[1] - kp1[match.queryIdx].pt[1]) for match in good]) / len(matches)
   #print(movement_y)
@@ -268,7 +276,8 @@ def main():
     imgs = [img[y1:y2, x1:x2] for img in imgs]
     crop_height = y2 - y1
     crop_width = x2 - x1
-    sub_imgs = np.concatenate([img[(crop_height - 50):(crop_height - 1), 0:(crop_width - 1)] for img in imgs], axis=0)
+    # sub_imgs width: 577 , height: 50 * len(imgs)
+    sub_imgs = np.concatenate([img[(crop_height - 50):crop_height, 0:crop_width] for img in imgs], axis=0)
     cv2.imwrite("tmp/" + os.path.basename(args.input_video_path) + '.subs.png', sub_imgs)
     if args.feature_algorithm == 'orb':
       print 'Use ORB'
@@ -317,30 +326,31 @@ def main():
       Succeeded, _, movement_y, kp2, des2 = feature_matcher(prev_img, img, prev_kp2, prev_des2, kp1, des1, True)
       #n2 = dt.datetime.now()
       #print((n2.microsecond-n1.microsecond)/1e6, 'secs')
-      movement_ys = movement_ys[1:]
-      movement_ys.append(movement_y)
-      movement_y = sum(movement_ys) / len(movement_ys)
-      prev_img = img
-      prev_kp2 = kp2
-      prev_des2 = des2
-      text_output = np.zeros((480, 640, 3), dtype=np.uint8)
-      cv2.putText(img=text_output, text=mphs[c], org=(0, 50), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1, color=(255, 0, 0), thickness=2)
-      cv2.putText(img=text_output, text=str(movement_y), org=(0, 100), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1, color=(255, 0, 0), thickness=2)
-      ratio = float(mphs[c]) / movement_y
-      if min_ratio > ratio:
-        min_ratio = ratio
-      if max_ratio < ratio:
-        max_ratio = ratio
-      if avg_ratio == 0.0:
-        avg_ratio = ratio
-      else:
-        avg_ratio = (ratio + avg_ratio) / 2
-      cv2.putText(img=text_output, text=str(ratio), org=(0, 150), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1, color=(255, 0, 0), thickness=2)
-      cv2.putText(img=text_output, text=('min:' + str(min_ratio)), org=(0, 200), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1, color=(255, 0, 0), thickness=2)
-      cv2.putText(img=text_output, text=('max:' + str(max_ratio)), org=(0, 250), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1, color=(255, 0, 0), thickness=2)
-      cv2.putText(img=text_output, text=('avg:' + str(avg_ratio)), org=(0, 300), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1, color=(255, 0, 0), thickness=2)
-      #cv2.imshow('match_result', match_result)
-      #cv2.imwrite("tmp/matches.png", img)
+      if Succeeded:
+        movement_ys = movement_ys[1:]
+        movement_ys.append(movement_y)
+        movement_y = sum(movement_ys) / len(movement_ys)
+        prev_img = img
+        prev_kp2 = kp2
+        prev_des2 = des2
+        text_output = np.zeros((480, 640, 3), dtype=np.uint8)
+        cv2.putText(img=text_output, text=mphs[c], org=(0, 50), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1, color=(255, 0, 0), thickness=2)
+        cv2.putText(img=text_output, text=str(movement_y), org=(0, 100), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1, color=(255, 0, 0), thickness=2)
+        ratio = float(mphs[c]) / movement_y
+        if min_ratio > ratio:
+          min_ratio = ratio
+        if max_ratio < ratio:
+          max_ratio = ratio
+        if avg_ratio == 0.0:
+          avg_ratio = ratio
+        else:
+          avg_ratio = (ratio + avg_ratio) / 2
+        cv2.putText(img=text_output, text=str(ratio), org=(0, 150), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1, color=(255, 0, 0), thickness=2)
+        cv2.putText(img=text_output, text=('min:' + str(min_ratio)), org=(0, 200), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1, color=(255, 0, 0), thickness=2)
+        cv2.putText(img=text_output, text=('max:' + str(max_ratio)), org=(0, 250), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1, color=(255, 0, 0), thickness=2)
+        cv2.putText(img=text_output, text=('avg:' + str(avg_ratio)), org=(0, 300), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1, color=(255, 0, 0), thickness=2)
+        #cv2.imshow('match_result', match_result)
+        #cv2.imwrite("tmp/matches.png", img)
       cv2.imshow('text_output', text_output)
       cv2.imshow('frame', frame)
       c += 1
