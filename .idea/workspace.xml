@@ -27,8 +27,8 @@
       <file leaf-file-name="canny.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/canny.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="441">
-              <caret line="353" column="0" lean-forward="false" selection-start-line="353" selection-start-column="0" selection-end-line="353" selection-end-column="0" />
+            <state relative-caret-position="395">
+              <caret line="133" column="31" lean-forward="true" selection-start-line="133" selection-start-column="31" selection-end-line="133" selection-end-column="31" />
               <folding>
                 <element signature="e#0#15#0" expanded="true" />
               </folding>
@@ -73,10 +73,10 @@
       <find>fill</find>
       <find>draw_orb_match</find>
       <find>draw_sift</find>
-      <find>find_roi</find>
       <find>canny</find>
       <find>mask_roi</find>
       <find>bf_match</find>
+      <find>find_roi</find>
     </findStrings>
     <replaceStrings>
       <replace>middle_hue</replace>
@@ -425,8 +425,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/canny.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="441">
-          <caret line="353" column="0" lean-forward="false" selection-start-line="353" selection-start-column="0" selection-end-line="353" selection-end-column="0" />
+        <state relative-caret-position="395">
+          <caret line="133" column="31" lean-forward="true" selection-start-line="133" selection-start-column="31" selection-end-line="133" selection-end-column="31" />
           <folding>
             <element signature="e#0#15#0" expanded="true" />
           </folding>

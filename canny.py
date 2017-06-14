@@ -129,6 +129,8 @@ def hough_lines(img, rho, theta, threshold, min_line_len, max_line_gap):
 def find_roi(frame, bottom_left_corner, bottom_right_corner, top_left, top_right):
   if (len(frame.shape) > 2):
     frame = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
+  kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
+  frame = cv2.filter2D(frame, -1, kernel)
   # Choose a Region Of Interest
   region = [np.array([bottom_left_corner,top_left, top_right, bottom_right_corner])]
   return region_of_interest(frame, region)
@@ -173,10 +175,12 @@ def bf_match(img1, img2, kp1, des1, kp2, des2, drawToImage = False):
   if des1 is None:
     print("des1 is None")
     cv2.imwrite("tmp/des1.png", img1)
+    quit(-1)
     return False, None, 0, None, None
   if des2 is None:
     print("des2 is None")
     cv2.imwrite("tmp/des2.png", img1)
+    quit(-1)
     return False, None, 0, None, None
   bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
   # Match descriptors.
@@ -191,6 +195,7 @@ def bf_match(img1, img2, kp1, des1, kp2, des2, drawToImage = False):
     cv2.imwrite("tmp/good_none1.png", img1)
     img2 = cv2.drawKeypoints(img2, kp2, 0, color=(0, 255, 0), flags=0)
     cv2.imwrite("tmp/good_none2.png", img2)
+    quit(-1)
     return False, None, 0, None, None
   movement_y_avg = sum([(kp2[match.trainIdx].pt[1] - kp1[match.queryIdx].pt[1]) for match in good]) / len(good)
   #print(movement_y)
