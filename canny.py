@@ -130,8 +130,9 @@ def find_roi(frame, bottom_left_corner, bottom_right_corner, top_left, top_right
     #kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
     #frame = cv2.filter2D(frame, -1, kernel)
     #frame = cv2.equalizeHist(frame)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    frame = clahe.apply(frame)
+    #clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    #frame = clahe.apply(frame)
+    #frame = auto_canny(frame)
     # Choose a Region Of Interest
     region = [np.array([bottom_left_corner,top_left, top_right, bottom_right_corner])]
     return region_of_interest(frame, region)
@@ -333,8 +334,9 @@ def main():
         x = 3.0
         estimated_speeds = np.array([(movement_y * x) for Succeeded, _, movement_y, kp2, des2, match_count in match_results])
         estimated_speeds = np.insert(estimated_speeds, 0, mphs[0])
+        print(speeds)
+        print(estimated_speeds)
         mean_square_error = ((speeds - estimated_speeds) ** 2).mean()
-        print(mean_square_error)
         while (cap.isOpened()):
             Succeeded, frame = cap.read()
             if not Succeeded:
