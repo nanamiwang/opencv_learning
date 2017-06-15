@@ -161,7 +161,7 @@ def find_lane(frame, bottom_left_corner, bottom_right_corner, top_left, top_righ
   return lane_annotated
 
 
-def verify_keypint_move_direction(width, pt1, pt2):
+def verify_keypoint_move_direction(width, pt1, pt2):
   (x1,y1) = pt1
   (x2,y2) = pt2
   if y1 > y2:
@@ -176,33 +176,34 @@ def bf_match(img1, img2, kp1, des1, kp2, des2, drawToImage = False):
     print("des1 is None")
     cv2.imwrite("tmp/des1.png", img1)
     quit(-1)
-    return False, None, 0, None, None
+    #return False, None, 0, None, None
   if des2 is None:
     print("des2 is None")
     cv2.imwrite("tmp/des2.png", img1)
     quit(-1)
-    return False, None, 0, None, None
+    #return False, None, 0, None, None
   bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
   # Match descriptors.
   matches = bf.match(des1, des2)
   # Sort them in the order of their distance.
   #matches = sorted(matches, key = lambda x:x.distance)
   height, width = img1.shape
-  good = [match for match in matches if verify_keypint_move_direction(width, kp1[match.queryIdx].pt, kp2[match.trainIdx].pt)]
+  good = [match for match in matches if verify_keypoint_move_direction(width, kp1[match.queryIdx].pt, kp2[match.trainIdx].pt)]
   if len(good) is 0:
     print("good is None")
     img1 = cv2.drawKeypoints(img1, kp1, 0, color=(0, 255, 0), flags=0)
     cv2.imwrite("tmp/good_none1.png", img1)
     img2 = cv2.drawKeypoints(img2, kp2, 0, color=(0, 255, 0), flags=0)
     cv2.imwrite("tmp/good_none2.png", img2)
+    match_img = cv2.drawMatches(img1,kp1,img2,kp2, matches, 0, flags=2)
+    cv2.imwrite("tmp/good_none_match.png", match_img)
     quit(-1)
-    return False, None, 0, None, None
+    #return False, None, 0, None, None
   movement_y_avg = sum([(kp2[match.trainIdx].pt[1] - kp1[match.queryIdx].pt[1]) for match in good]) / len(good)
   #print(movement_y)
   out = None
   if drawToImage:
-    outImg = np.zeros((1, 1, 3), dtype=np.uint8)
-    out = cv2.drawMatches(img1,kp1,img2,kp2, good, outImg, flags=2)
+    out = cv2.drawMatches(img1,kp1,img2,kp2, good, 0, flags=2)
     cv2.putText(img=out, text=str(len(good)), org=(width * 2 - 100, 50), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=2,
                 color=(0, 0, 255), thickness=2)
     cv2.imshow('out', out)
@@ -212,11 +213,13 @@ def sift_knn_match(img1, img2, kp1, des1, kp2, des2, drawToImage = False):
   if des1 is None:
     print("des1 is None")
     cv2.imwrite("tmp/des1.png", img1)
-    return False, None, 0, None, None
+    quit(-1)
+    #return False, None, 0, None, None
   if des2 is None:
     print("des2 is None")
     cv2.imwrite("tmp/des2.png", img1)
-    return False, None, 0, None, None
+    quit(-1)
+    #return False, None, 0, None, None
   bf = cv2.BFMatcher()
   matches = bf.knnMatch(des1, des2, k=2)
   # Apply ratio test
@@ -225,20 +228,22 @@ def sift_knn_match(img1, img2, kp1, des1, kp2, des2, drawToImage = False):
     if len(m) == 2 and m[0].distance < 0.75 * m[1].distance:
       good.append(m[0])
   height, width = img1.shape
-  good = [match for match in good if verify_keypint_move_direction(width, kp1[match.queryIdx].pt, kp2[match.trainIdx].pt)]
+  good = [match for match in good if verify_keypoint_move_direction(width, kp1[match.queryIdx].pt, kp2[match.trainIdx].pt)]
   if len(good) is 0:
     print("good is None")
     img1 = cv2.drawKeypoints(img1, kp1, 0, color=(0, 255, 0), flags=0)
     cv2.imwrite("tmp/good_none1.png", img1)
     img2 = cv2.drawKeypoints(img2, kp2, 0, color=(0, 255, 0), flags=0)
     cv2.imwrite("tmp/good_none2.png", img2)
-    return False, None, 0, None, None
+    match_img = cv2.drawMatches(img1,kp1,img2,kp2, matches, 0, flags=2)
+    cv2.imwrite("tmp/good_none_match.png", match_img)
+    quit(-1)
+    #return False, None, 0, None, None
   movement_y_avg = sum([(kp2[match.trainIdx].pt[1] - kp1[match.queryIdx].pt[1]) for match in good]) / len(matches)
   #print(movement_y)
   out = None
   if drawToImage:
-    outImg = np.zeros((1, 1, 3), dtype=np.uint8)
-    out = cv2.drawMatches(img1,kp1,img2,kp2, good, outImg, flags=2)
+    out = cv2.drawMatches(img1,kp1,img2,kp2, good, 0, flags=2)
     cv2.putText(img=out, text=str(len(good)), org=(width * 2 - 100, 50), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=2,
                 color=(0, 0, 255), thickness=2)
     cv2.imshow('out', out)

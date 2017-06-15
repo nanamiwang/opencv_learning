@@ -27,8 +27,8 @@
       <file leaf-file-name="canny.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/canny.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="395">
-              <caret line="133" column="31" lean-forward="true" selection-start-line="133" selection-start-column="31" selection-end-line="133" selection-end-column="31" />
+            <state relative-caret-position="407">
+              <caret line="200" column="38" lean-forward="true" selection-start-line="200" selection-start-column="38" selection-end-line="200" selection-end-column="38" />
               <folding>
                 <element signature="e#0#15#0" expanded="true" />
               </folding>
@@ -77,11 +77,13 @@
       <find>mask_roi</find>
       <find>bf_match</find>
       <find>find_roi</find>
+      <find>verify_keypint_move_direction</find>
     </findStrings>
     <replaceStrings>
       <replace>middle_hue</replace>
       <replace>orb_match</replace>
       <replace>match_results</replace>
+      <replace>verify_keypoint_move_direction</replace>
     </replaceStrings>
   </component>
   <component name="Git.Settings">
@@ -425,8 +427,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/canny.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="395">
-          <caret line="133" column="31" lean-forward="true" selection-start-line="133" selection-start-column="31" selection-end-line="133" selection-end-column="31" />
+        <state relative-caret-position="407">
+          <caret line="200" column="38" lean-forward="true" selection-start-line="200" selection-start-column="38" selection-end-line="200" selection-end-column="38" />
           <folding>
             <element signature="e#0#15#0" expanded="true" />
           </folding>
