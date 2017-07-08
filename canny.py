@@ -4,6 +4,18 @@ import cv2
 from collections import namedtuple
 import os
 import datetime as dt
+from skimage.measure import compare_ssim as ssim
+
+def mse(imageA, imageB):
+    # the 'Mean Squared Error' between the two images is the
+    # sum of the squared difference between the two images;
+    # NOTE: the two images must have the same dimension
+    err = np.sum((imageA.astype('float') - imageB.astype('float')) ** 2)
+    err /= float(imageA.shape[0] * imageA.shape[1])
+    # return the MSE, the lower the error, the more "similar"
+    # the two images are
+    return err
+
 
 def merge(img1, img2):
     rows,cols,channels = img2.shape
@@ -58,15 +70,21 @@ def make_edges(frame):
     return frame
 
 
-def make_warp(frame):
+def make_warp(frame, x1, y1, x2, y2, x3, y3, x4, y4):
     height, width, _ = frame.shape
-    pts_src = np.array([[width / 2 - 35, height / 2], [width / 2 + 35 , height / 2], [0, height], [width, height]])
+    pts_src = np.array([[x1, y1], [x2, y2], [x3, y3], [x4, y4]])
     pts_dst = np.array([[0, 0], [width, 0], [0, height], [width, height]])
     # Calculate Homography
     h, status = cv2.findHomography(pts_src, pts_dst)
     # Warp source image to destination based on homography
     return cv2.warpPerspective(frame, h, (width, height))
 
+def perspective_transform(frame, x1, y1, x2, y2, x3, y3, x4, y4):
+    height, width, _ = frame.shape
+    pts1 = np.float32([[x1, y1], [x2, y2], [x3, y3], [x4, y4]])
+    pts2 = np.float32([[0, 0], [width, 0], [0, height], [width, height]])
+    M = cv2.getPerspectiveTransform(pts1, pts2)
+    return cv2.warpPerspective(frame, M, (width, height))
 
 def find_blobs(frame):
     # Set up the detector with default parameters.
@@ -124,8 +142,8 @@ def hough_lines(img, rho, theta, threshold, min_line_len, max_line_gap):
 
 
 def find_roi(frame, bottom_left_corner, bottom_right_corner, top_left, top_right):
-    if (len(frame.shape) > 2):
-        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
+    # if (len(frame.shape) > 2):
+    #     frame = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
     # Sharpen using kernel
     #kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
     #frame = cv2.filter2D(frame, -1, kernel)
@@ -292,7 +310,8 @@ def main():
         crop_height = y2 - y1
         crop_width = x2 - x1
         # sub_imgs width: 577 , height: 50 * len(imgs)
-        sub_imgs = np.concatenate([img[(crop_height - 50):crop_height, 0:crop_width] for img in imgs], axis=0)
+        #sub_imgs = np.concatenate([img[(crop_height - 50):crop_height, 0:crop_width] for img in imgs], axis=0)
+        sub_imgs = np.concatenate([img for img in imgs], axis=0)
         cv2.imwrite("tmp/" + os.path.basename(args.input_video_path) + '.subs.png', sub_imgs)
         if args.feature_algorithm == 'orb':
           print 'Use ORB'
@@ -392,22 +411,143 @@ def main():
                 break
         cv2.imwrite("tmp/" + os.path.basename(args.input_video_path) + '.' + args.feature_algorithm + ".stats.png", text_output)
     else:
+        cv2.namedWindow('params', 0)
+        global top_left_x, top_left_y, top_right_x, top_right_y
+        top_left_x = top_left[0]
+        top_left_y = top_left[1]
+        top_right_x = top_right[0]
+        top_right_y = top_right[1]
+
+        def update_top_left_x(val):
+            global top_left_x, top_left_y, top_right_x, top_right_y
+            top_left_x = val
+            print(top_left_x, top_left_y, top_right_x, top_right_y)
+
+
+        def update_top_right_x(val):
+            global top_left_x, top_left_y, top_right_x, top_right_y
+            top_right_x = val
+            print(top_left_x, top_left_y, top_right_x, top_right_y)
+
+
+        def update_top_left_y(val):
+            global top_left_x, top_left_y, top_right_x, top_right_y
+            top_left_y = val
+            print(top_left_x, top_left_y, top_right_x, top_right_y)
+
+
+        def update_top_right_y(val):
+            global top_left_x, top_left_y, top_right_x, top_right_y
+            top_right_y = val
+            print(top_left_x, top_left_y, top_right_x, top_right_y)
+
+        cv2.createTrackbar('top_left_x', 'params', top_left_x, 640, update_top_left_x)
+        cv2.createTrackbar('top_left_y', 'params', top_left_y, 480, update_top_left_y)
+        cv2.createTrackbar('top_right_x', 'params', top_right_x, 640, update_top_right_x)
+        cv2.createTrackbar('top_right_y', 'params', top_right_y, 480, update_top_right_y)
+
+        global mouse_btn_down1, rect1, x11, y11, x12, y12, y21, y22, frame1, frame2
+        _, frame1 = cap.read()
+        _, frame2 = cap.read()
+        height1, width1, _ = frame1.shape
+        x11 = 220
+        x12 = 442
+        y21 = y11 = 256
+        y22 = y12 = 337
+        mouse_btn_down1 = False
+        def on_mouse_event1(event, x, y, flags, frame):
+            global mouse_btn_down1, rect1, x11, y11, x12, y12, y21, y22, frame1, frame2
+
+            # Draw Rectangle
+            if event == cv2.EVENT_LBUTTONDOWN:
+                mouse_btn_down1 = True
+                x11, y11 = x, y
+                y21 = y
+                if y12 > y11 and x12 > x11:
+                    redraw()
+            elif event == cv2.EVENT_MOUSEMOVE:
+                if mouse_btn_down1 is True:
+                    x12, y12 = x, y
+                    y22 = y
+                    if y12 > y11 and x12 > x11:
+                        redraw()
+            elif event == cv2.EVENT_LBUTTONUP:
+                mouse_btn_down1 = False
+
+        def redraw():
+            global mouse_btn_down1, rect1, x11, y11, x12, y12, y21, y22, frame1, frame2
+            frame1_1 = frame1.copy()
+            frame2_1 = frame2.copy()
+            f = auto_canny(frame1_1)
+            f = cv2.cvtColor(f,cv2.COLOR_GRAY2BGR)
+            #f = [128 if x == 255 else 0 for x in f]
+            for x in f: print(x)
+            cv2.imshow('f', f)
+            enlarged_frame1 = cv2.resize(frame1, None, fx=1.1, fy=1.1, interpolation=cv2.INTER_CUBIC)
+            enlarged_height1, enlarged_width1, _ = enlarged_frame1.shape
+            crop_y1 = (enlarged_height1 - height1) / 2
+            crop_y2 = (enlarged_height1 - height1) / 2 + height1
+            crop_x1 = (enlarged_width1 - width1) / 2
+            crop_x2 = (enlarged_width1 - width1) / 2 + width1
+            cropped_enlarged_frame1 = enlarged_frame1[crop_y1: crop_y2, crop_x1:crop_x2]
+            cv2.putText(img=frame1_1, text='{} {}'.format((x11, y11), (x12, y12)), org=(0, 50), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1,
+                        color=(255, 0, 0), thickness=2)
+            sub_frame1 = cropped_enlarged_frame1[y11:y12, x11:x12]
+            sub_frame2 = frame2_1[y21:y22, x11:x12]
+            cv2.putText(img=frame1_1, text='mse: {:.4f}, ssim: {:.4f}'.format(mse(sub_frame1, sub_frame2), ssim(sub_frame1, sub_frame2, multichannel=True)), org=(0, 100), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1,
+                        color=(255, 0, 0), thickness=2)
+            cv2.putText(img=frame2_1, text='{} {}'.format((x11, y21), (x12, y22)), org=(0, 50), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1,
+                        color=(255, 0, 0), thickness=2)
+            cv2.rectangle(cropped_enlarged_frame1, (x11, y11), (x12, y12), (0, 255, 0), 1)
+            cv2.rectangle(frame2_1, (x11, y21), (x12, y22), (0, 255, 0), 1)
+            cv2.imshow('frame1', frame1_1)
+            cv2.imshow('frame2', frame2_1)
+            cv2.imshow('cropped_enlarged_frame1', cropped_enlarged_frame1)
+
+        redraw()
+        cv2.setMouseCallback("frame1", on_mouse_event1, param=())
+        cv2.setMouseCallback("frame2", on_mouse_event1, param=())
         while (cap.isOpened()):
-            _, frame = cap.read()
             #img = make_edges(frame)
-            img = find_roi(frame, bottom_left_corner, bottom_right_corner, top_left, top_right)
-            img = img[y1:y2, x1:x2]
-            img = draw_sift(img)
+            #img = find_roi(frame, bottom_left_corner, bottom_right_corner, top_left, top_right)
+            #img = perspective_transform(img, top_left_x, top_left_y, top_right_x, top_right_y, bottom_left_corner[0], bottom_left_corner[1], bottom_right_corner[0], bottom_right_corner[1])
+            #img = img[y1:y2, x1:x2]
+            #img = draw_sift(img)
             #img = find_blobs(frame)
-            #img = make_warp(frame)
-            img = find_lane(frame, bottom_left_corner, bottom_right_corner, top_left, top_right)
-            cv2.putText(img=img, text=mphs[c], org=(0, 50), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1, color=(255, 0, 0), thickness=2)
-            c += 1
-            cv2.imshow('edged', img)
-            cv2.imshow('orginal', frame)
-            #cv2.setMouseCallback("orginal", on_mouse, param=())
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+            #img = find_lane(frame, bottom_left_corner, bottom_right_corner, top_left, top_right)
+            #img2 = make_warp(frame, top_left_x, top_left_y, top_right_x, top_right_y, bottom_left_corner[0], bottom_left_corner[1], bottom_right_corner[0], bottom_right_corner[1])
+            #cv2.putText(img=img, text=mphs[c], org=(0, 50), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1, color=(255, 0, 0), thickness=2)
+            #c += 1
+            #cv2.imshow('img', img)
+            #cv2.imshow('img2', img2)
+            #height, width, _ = frame.shape
+            #print(frame[(height - 100):height, 0:width].mean())
+            #_, frame = cap.read()
+            #print(frame[(height - 100):height, 0:width].mean())
+            # break
+            k = cv2.waitKey(100) & 0xFF
+            if k == ord('q'):
                 break
+            elif k == ord('w'):
+                if y12 < height1:
+                    y11 -= 1
+                    y12 -= 1
+                    redraw()
+            elif k == ord('s'):
+                if y12 < height1:
+                    y11 += 1
+                    y12 += 1
+                    redraw()
+            elif k == ord('e'):
+                if y22 < height1:
+                    y21 -= 1
+                    y22 -= 1
+                    redraw()
+            elif k == ord('d'):
+                if y22 < height1:
+                    y21 += 1
+                    y22 += 1
+                    redraw()
     cap.release()
     cv2.destroyAllWindows()
 
