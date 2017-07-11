@@ -56,3 +56,5 @@ docs/_build/
 # PyBuilder
 target/
 tmp/
+MNIST_data/
+.ipynb_checkpoints/
